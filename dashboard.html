@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tourism Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/"><i class="fas fa-globe-americas me-2"></i>Tourism Management</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/"><i class="fas fa-home me-1"></i>Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/dashboard"><i class="fas fa-chart-line me-1"></i>Dashboard</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <h1><i class="fas fa-chart-pie me-2"></i>Tourism Analytics Dashboard</h1>
+        
+        <!-- Key Statistics -->
+        <div class="stats-container">
+            <div class="stat-card">
+                <i class="fas fa-users fa-2x mb-3" style="color: #3f51b5;"></i>
+                <h3>Total Tourists</h3>
+                <p>{{ total_tourists }}</p>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-map-marker-alt fa-2x mb-3" style="color: #009688;"></i>
+                <h3>Total Destinations</h3>
+                <p>{{ total_destinations }}</p>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-plane-departure fa-2x mb-3" style="color: #ff5722;"></i>
+                <h3>Total Visits</h3>
+                <p>{{ total_visits }}</p>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-redo fa-2x mb-3" style="color: #ff9800;"></i>
+                <h3>Tourist Return Rate</h3>
+                <p>{{ "%.1f"|format(return_rate.percentage) }}%</p>
+                <small>Multiple destination visitors</small>
+            </div>
+        </div>
+
+        <!-- Tourist Nationality Distribution -->
+        <div class="chart-container">
+            <h2><i class="fas fa-globe me-2"></i>Tourist Nationality Distribution</h2>
+            <div id="nationality-chart"></div>
+        </div>
+
+        <!-- Tourist Return Rate -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Tourist Return Rate</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="text-center">
+                                    <h3 class="text-primary">{{ return_rate.percentage|round(1) }}%</h3>
+                                    <p>Tourists visiting multiple destinations</p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-center">
+                                    <h3 class="text-success">{{ return_rate.single_destination }}</h3>
+                                    <p>Single destination tourists</p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-center">
+                                    <h3 class="text-info">{{ return_rate.multiple_destinations }}</h3>
+                                    <p>Multiple destination tourists</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tourist Statistics -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="fas fa-users me-2"></i>Tourist Statistics</h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="nav nav-tabs" id="touristTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="all-tourists-tab" data-bs-toggle="tab" data-bs-target="#all-tourists" type="button" role="tab" aria-controls="all-tourists" aria-selected="true">All Tourists</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="single-tourists-tab" data-bs-toggle="tab" data-bs-target="#single-tourists" type="button" role="tab" aria-controls="single-tourists" aria-selected="false">Single Destination Tourists</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="multi-tourists-tab" data-bs-toggle="tab" data-bs-target="#multi-tourists" type="button" role="tab" aria-controls="multi-tourists" aria-selected="false">Multi-Destination Tourists</button>
+                            </li>
+                        </ul>
+                        <div class="tab-content mt-3" id="touristTabsContent">
+                            <div class="tab-pane fade show active" id="all-tourists" role="tabpanel" aria-labelledby="all-tourists-tab">
+                                <div class="table-responsive">
+                                    <table class="table table-striped table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Name</th>
+                                                <th>Nationality</th>
+                                                <th>Age</th>
+                                                <th>Visit Count</th>
+                                                <th>Destinations Visited</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for tourist in all_tourists %}
+                                            <tr>
+                                                <td>{{ tourist.id }}</td>
+                                                <td>{{ tourist.name }}</td>
+                                                <td>{{ tourist.nationality }}</td>
+                                                <td>{{ tourist.age }}</td>
+                                                <td>{{ tourist.visit_count }}</td>
+                                                <td>{{ tourist.destinations_visited }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="single-tourists" role="tabpanel" aria-labelledby="single-tourists-tab">
+                                <div class="table-responsive">
+                                    <table class="table table-striped table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Name</th>
+                                                <th>Nationality</th>
+                                                <th>Age</th>
+                                                <th>Visit Count</th>
+                                                <th>Destinations Visited</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for tourist in single_destination_tourists %}
+                                            <tr>
+                                                <td>{{ tourist.id }}</td>
+                                                <td>{{ tourist.name }}</td>
+                                                <td>{{ tourist.nationality }}</td>
+                                                <td>{{ tourist.age }}</td>
+                                                <td>{{ tourist.visit_count }}</td>
+                                                <td>{{ tourist.destinations_visited }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="multi-tourists" role="tabpanel" aria-labelledby="multi-tourists-tab">
+                                <div class="table-responsive">
+                                    <table class="table table-striped table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Name</th>
+                                                <th>Nationality</th>
+                                                <th>Age</th>
+                                                <th>Visit Count</th>
+                                                <th>Destinations Visited</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for tourist in multi_destination_tourists %}
+                                            <tr>
+                                                <td>{{ tourist.id }}</td>
+                                                <td>{{ tourist.name }}</td>
+                                                <td>{{ tourist.nationality }}</td>
+                                                <td>{{ tourist.age }}</td>
+                                                <td>{{ tourist.visit_count }}</td>
+                                                <td>{{ tourist.destinations_visited }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Destination Ratings -->
+        <div class="table-container">
+            <h2><i class="fas fa-star me-2"></i>Destination Ratings</h2>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Destination</th>
+                        <th>Location</th>
+                        <th>Average Rating</th>
+                        <th>Visit Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for dest in destination_ratings %}
+                    <tr>
+                        <td>{{ dest.name }}</td>
+                        <td>{{ dest.city }}, {{ dest.country }}</td>
+                        <td>
+                            <span class="badge bg-warning text-dark">
+                                {{ "%.1f"|format(dest.avg_rating) }}
+                            </span>
+                        </td>
+                        <td>{{ dest.visit_count }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Top Destinations by Revenue -->
+        <div class="table-container">
+            <h2><i class="fas fa-dollar-sign me-2"></i>Top Destinations by Revenue</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Destination</th>
+                        <th>Location</th>
+                        <th>Visit Count</th>
+                        <th>Total Revenue</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for dest in top_destinations %}
+                    <tr>
+                        <td>{{ dest.name }}</td>
+                        <td>{{ dest.city }}, {{ dest.country }}</td>
+                        <td>{{ dest.visit_count }}</td>
+                        <td>
+                            <span class="badge" style="background-color: #4caf50; color: white; padding: 5px 10px; border-radius: 4px;">
+                                ${{ "%.2f"|format(dest.total_revenue) }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Seasonal Trends -->
+        <div class="table-container">
+            <h2><i class="fas fa-calendar-alt me-2"></i>Seasonal Visit Trends</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>Number of Visits</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for trend in seasonal_trends %}
+                    <tr>
+                        <td>{{ trend.month }}</td>
+                        <td>
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar" role="progressbar" 
+                                     data-width="{{ (trend.count / total_visits * 100)|round if total_visits > 0 else 0 }}"
+                                     style="width: 0%; background-color: #3f51b5;" 
+                                     aria-valuenow="{{ trend.count }}" aria-valuemin="0" aria-valuemax="{{ total_visits }}">
+                                    {{ trend.count }}
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="table-container">
+            <h2><i class="fas fa-history me-2"></i>Recent Activity</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Tourist</th>
+                        <th>Destination</th>
+                        <th>Location</th>
+                        <th>Rating</th>
+                        <th>Visit Date (IST)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for activity in recent_activities %}
+                    <tr>
+                        <td><i class="fas fa-user me-1"></i>{{ activity.tourist_name }}</td>
+                        <td><i class="fas fa-map-marker-alt me-1"></i>{{ activity.destination_name }}</td>
+                        <td>{{ activity.city }}, {{ activity.country }}</td>
+                        <td>
+                            <span class="badge" style="background-color: #ff9800; color: white; padding: 5px 10px; border-radius: 4px;">
+                                {{ activity.rating }}/5
+                            </span>
+                        </td>
+                        <td><i class="far fa-clock me-1"></i>{{ activity.visit_date }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Initialize charts
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                // Nationality distribution chart
+                var nationalityData = JSON.parse('{{ nationality_chart|safe }}');
+                Plotly.newPlot('nationality-chart', nationalityData.data, nationalityData.layout);
+                
+                // Set progress bar widths for seasonal trends
+                document.querySelectorAll('.progress-bar').forEach(function(bar) {
+                    var width = bar.getAttribute('data-width');
+                    if (width) {
+                        bar.style.width = width + '%';
+                    }
+                });
+            } catch (error) {
+                console.error('Error initializing charts:', error);
+                document.getElementById('nationality-chart').innerHTML = 
+                    '<div class="alert alert-danger">Error loading chart data.</div>';
+            }
+        });
+    </script>
+</body>
+</html> 
